@@ -1,0 +1,20 @@
+#!/bin/bash
+## Script to install UNIX tools 'bk','rmb','ret'
+##    	Execute as follows,
+##		sudo ./install;
+
+## -Add Executable permission to the scripts
+chmod a+x bk rmb ret
+## -Moving commands scripts to system directories
+sudo cp bk /usr/local/bin/;
+sudo cp rmb /usr/local/bin/;
+sudo cp ret /usr/local/bin/;
+## -Moving man pages to system directories
+mkdir -p /usr/local/share/man/man1/;
+sudo cp bk.1.gz /usr/local/share/man/man1/;
+sudo cp rmb.1.gz /usr/local/share/man/man1/;
+sudo cp ret.1.gz /usr/local/share/man/man1/;
+## -Create Trash folder
+mkdir -p ~/.Trash_backup;
+#sudo chown $USER ~/.Trash_backup;
+sudo chmod a+rwx ~/.Trash_backup;

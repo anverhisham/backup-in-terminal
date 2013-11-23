@@ -1,0 +1,204 @@
+#!/usr/bin/perl
+
+################## -COPYRIGHTS & WARRANTY- #########################
+## It is provided without any warranty of fitness
+## for any purpose. You can redistribute this file
+## and/or modify it under the terms of the GNU
+## Lesser General Public License (LGPL) as published
+## by the Free Software Foundation, either version 3
+## of the License or (at your option) any later version.
+## (see http://www.opensource.org/licenses for more info)
+####################################################################
+
+########################### -TODO- #################################
+
+## -Author: Anver Hisham <anverhisham@gmail.com>
+####################################################################
+
+use List::Util qw(first);
+
+use strict;
+use warnings;
+use POSIX;
+$SIG{CHLD} = 'IGNORE';      # To avoid zombie child processes
+use File::Spec;             # For using 'chdir File::Spec->updir;'
+use List::Util qw(first);   # For getting first index of the search item in an Array. (Warning: the word 'first is reserved from now on!!)
+#sub cutOptions,checkForRegularExpressions;
+## -Get the script file & folder names, & change directory to script folder. - ##
+use Cwd 'abs_path';
+use File::Basename;
+use List::Util qw(sum);
+use constant false => 0;
+use constant true  => 1;
+
+our $currentFileVersionNumber = '1.0';
+our $trashFolder=$ENV{"HOME"}."/.Trash_backup";
+our $timePattern = qr/\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}/;
+our $registerPattern = qr/register:\w+/;
+our $prefixPattern = qr/$timePattern-($registerPattern-)?/;
+
+exit main();
+
+sub main {
+    my $currentTime = getCurrentTime();
+    
+    ## -To get fileNames starting as -- -foo
+    my @fileNames = ();	##cutOptions(\@ARGV,'all',' ','--');
+    ## -Input Grepping
+    my($register,$reg) = cutOptions(\@ARGV,' ','--register','--reg');
+    my($version) = cutOptions(\@ARGV,'bool','--version'); ## Note: All other options are discarded.
+    @fileNames = (@fileNames, grep(!/^-/,@ARGV));
+    map{s/\s*$//,s/^.*\/.+//} @fileNames;
+    if($reg ne '') { $register = $reg; }
+    my $regToPrepend = '';
+    if($register ne '') { $regToPrepend = "-register:$register--";}
+    if($version) { print "$currentFileVersionNumber\n"; exit 0;}
+    
+    ## -Copy all files to $trashFolder ($fileName can also be a pattern)
+    foreach my $fileName(@fileNames) {
+       print `cp -rf $fileName $trashFolder;`;
+    }
+    ## -Prepend all non-prepended files in $trashFolder with $currentTime
+    my @nonPrependedFilesInTrash = grep(!/$timePattern/,split('\n',`ls $trashFolder`));
+    foreach my $nonPrependedFileInTrash(@nonPrependedFilesInTrash) {
+	print `mv -f $trashFolder/$nonPrependedFileInTrash $trashFolder/$currentTime$regToPrepend$nonPrependedFileInTrash;`;
+    }
+    return 0;
+}
+
+########## ########## ########## -Time Manipulation Functions- ########## ############ ########## 
+########## -Time Manipulation Functions- ############
+## \Warning: localtime(4) return month-1. (ie month start from '0' instead of '1' !!)
+sub getCurrentTime {
+    my @currentTime = localtime();
+    return convertLocalTimeArrayToTimeString(@currentTime);
+}
+
+## -Expected input format is year:month:day:hour:minute:second
+sub convertTimeStringToLocalTimeArray {
+    my $timeString = shift(@_);
+    my @timeArray = split(':',$timeString);
+    @timeArray = reverse(@timeArray);
+    $timeArray[4] -= 1;			## Make month start from '0'
+    $timeArray[5] -= 1900;		## Make Year start from 1900.
+    return @timeArray;
+}
+
+## -Expected input is an array with format same as localtime output
+sub convertLocalTimeArrayToTimeString {
+    my @timeArray = @_;
+    $timeArray[4] += 1;			## Make month start from '1'
+    $timeArray[5] += 1900;		## Make Proper Year (not starting from 1900).
+    my $timeString = sprintf("%d:%02d:%02d:%02d:%02d:%02d",@timeArray[5,4,3,2,1,0]);
+    return $timeString;
+}
+#################################################################################################
+
+
+#################################################################################################################################
+###########################################--- GENERIC FUNCTIONS ----------------################################################
+#################################################################################################################################
+
+sub cutOptions {
+    my @outputs = ();
+    my ($refToinArgs,$delimiter,@optionStrings) = @_;
+    my $configuration ='';
+    if($delimiter=~m/^all$/i) { $configuration = 'all'; $delimiter = shift(@optionStrings);}
+    if($delimiter eq '') { $delimiter=' '; }				## -Make space as default delimiter
+
+    if (ref($refToinArgs)) {
+        for(my $iOption=0; $iOption<scalar(@optionStrings); $iOption++) {
+            my $output;
+            my $optionString = $optionStrings[$iOption];
+            for(my $i=0; $i<scalar(@{$refToinArgs}); $i++) {
+                if($refToinArgs->[$i] !~ m/^$optionString$/i) {
+                    next;
+                }
+                else {
+                    $output = splice(@{$refToinArgs},$i,1);
+                    if($delimiter eq 'bool') {
+                        $output = true;
+                    }
+                    elsif($output =~ m/\s$optionString\s*$delimiter\s*\w+/i ) {             	## -level=1
+                        $output =~ s/\s$optionString\s*$delimiter//i;
+                    }
+                    elsif($output =~ m/\s$optionString\s*$delimiter/i) {                 	## -level= 1
+                        $output = splice(@{$refToinArgs},$i,1);
+                    }
+                    elsif($delimiter eq ' ') {                 				## -level 1
+                        $output = splice(@{$refToinArgs},$i,1);
+                    }
+                    elsif($refToinArgs->[$i] =~ m/$delimiter/) {                     	## -level = 1
+                        $output = splice(@{$refToinArgs},$i,1);
+                        $output = splice(@{$refToinArgs},$i,1);
+                    }
+                    else {
+                        print "Error(cutOptions): Place proper delimter($delimiter) for options!!!";
+                        exit 0;
+                    }
+                    $output =~ s/\s*//;                
+		    if($configuration eq 'all') { push(@outputs,$output); }
+                    last;
+                }
+            }
+            if(!defined($output)) {
+                if($delimiter eq 'bool') {
+                    $output=false;
+                }
+                else {
+                    $output='';
+                }
+            }
+	    if($configuration ne 'all') { push(@outputs,$output); }
+        }
+    }
+    else { 														# Not a reference
+        print "Error(cutOptions): First input argument is not a reference, Can't be trimmed...";
+        exit 0;
+    }
+    trimSpacesFromBothEnd(\@outputs);
+    return @outputs;
+}
+
+
+
+
+######### Advantage: Trim an array of array of array..... ##########
+######### Input: One/Multiple references to Scalar/Array... ##########
+######### Picked from multipleRun.pl  ###############
+sub trimSpacesFromBothEnd {
+	my $input = $_[0];
+	
+	if (scalar(@_)>1) { 												# Input is an array
+	    foreach my $input(@_) {
+		trimSpacesFromBothEnd($input);
+	    }
+	}
+	
+	if ( UNIVERSAL::isa($input,'REF') ) {							    			# Reference to a Reference
+		trimSpacesFromBothEnd(${$input});
+	}
+	elsif ( ! ref($input) ) { 												# Not a reference
+	    print "Error(trimSpacesFromBothEnd): Not a reference, Can't be trimmed...";
+	    exit 0;
+	}
+	elsif ( UNIVERSAL::isa($input,'SCALAR')) {  										# Reference to a scalar
+		chomp(${$input});
+		${$input} =~ s/^\s+//g;
+		${$input} =~ s/\s+$//g;		
+	}
+	elsif ( UNIVERSAL::isa($input,'ARRAY') ) { 										# Reference to an array
+		foreach my $element(@{$input}) {
+			trimSpacesFromBothEnd(\$element);
+		}
+	}
+	elsif ( UNIVERSAL::isa($input,'HASH') ) { 										# Reference to a hash
+	    print "Error(trimSpacesFromBothEnd): Reference to an hash, Can't be trimmed...";
+	    exit 0;
+	}
+	elsif ( UNIVERSAL::isa($input,'CODE') ) { 										# Reference to a subroutine
+	    print "Error(trimSpacesFromBothEnd): Reference to an subroutine, Can't be trimmed...";
+	    exit 0;
+	}
+}
+

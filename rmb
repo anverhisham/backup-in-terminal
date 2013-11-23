@@ -1,0 +1,193 @@
+#!/usr/bin/perl
+
+################## -COPYRIGHTS & WARRANTY- #########################
+## It is provided without any warranty of fitness
+## for any purpose. You can redistribute this file
+## and/or modify it under the terms of the GNU
+## Lesser General Public License (LGPL) as published
+## by the Free Software Foundation, either version 3
+## of the License or (at your option) any later version.
+## (see http://www.opensource.org/licenses for more info)
+####################################################################
+
+## -Author: Anver Hisham <anverhisham@gmail.com>
+####################################################################
+
+## -Include required packages/functions ,.
+use strict;
+use warnings;
+use POSIX;
+$SIG{CHLD} = 'IGNORE';      # To avoid zombie child processes
+use File::Spec;             # For using 'chdir File::Spec->updir;'
+use List::Util qw(first);   # For getting first index of the search item in an Array. (Warning: the word 'first is reserved from now on!!)
+use List::Util qw(sum);
+
+our $currentFileVersionNumber = '1.0';
+use constant false => 0;
+use constant true  => 1;
+
+exit main();
+
+sub main {
+    my($version) = cutOptions(\@ARGV,'bool','--version');
+    ## -Print the oldest version among 'rmb' and 'bk'
+    if($version) {
+        my $bkVersion = `bk --version`; chomp($bkVersion);
+        $currentFileVersionNumber = (compareVersionNumbers($currentFileVersionNumber,$bkVersion)<0)? $currentFileVersionNumber:$bkVersion;
+        print "$currentFileVersionNumber\n";
+        exit 0;
+    }
+    my @inputARGsTobk = @ARGV;
+    my($register,$reg) = cutOptions(\@ARGV,' ','--register','--reg');
+    my @inputARGsTorm = @ARGV;
+    #foreach my $inputARG(@inputARGs) {
+        #if($inputARG!~m/^-/) {
+            #print `bk $inputARG;`;
+        #}
+    #}
+    if(scalar(@inputARGsTobk)) {
+        print `bk @inputARGsTobk`;
+    }
+    if(scalar(@inputARGsTorm)) {
+        print `rm -rf @inputARGsTorm`;
+    }
+    return 0;
+}
+
+#################################################################################################################################
+###########################################--- GENERIC FUNCTIONS ----------------################################################
+#################################################################################################################################
+
+sub cutOptions {
+    my @outputs = ();
+    my ($refToinArgs,$delimiter,@optionStrings) = @_;
+    my $configuration ='';
+    if($delimiter=~m/^all$/i) { $configuration = 'all'; $delimiter = shift(@optionStrings);}
+    if($delimiter eq '') { $delimiter=' '; }				## -Make space as default delimiter
+
+    if (ref($refToinArgs)) {
+        for(my $iOption=0; $iOption<scalar(@optionStrings); $iOption++) {
+            my $output;
+            my $optionString = $optionStrings[$iOption];
+            for(my $i=0; $i<scalar(@{$refToinArgs}); $i++) {
+                if($refToinArgs->[$i] !~ m/^$optionString$/i) {
+                    next;
+                }
+                else {
+                    $output = splice(@{$refToinArgs},$i,1);
+                    if($delimiter eq 'bool') {
+                        $output = true;
+                    }
+                    elsif($output =~ m/\s$optionString\s*$delimiter\s*\w+/i ) {             	## -level=1
+                        $output =~ s/\s$optionString\s*$delimiter//i;
+                    }
+                    elsif($output =~ m/\s$optionString\s*$delimiter/i) {                 	## -level= 1
+                        $output = splice(@{$refToinArgs},$i,1);
+                    }
+                    elsif($delimiter eq ' ') {                 				## -level 1
+                        $output = splice(@{$refToinArgs},$i,1);
+                    }
+                    elsif($refToinArgs->[$i] =~ m/$delimiter/) {                     	## -level = 1
+                        $output = splice(@{$refToinArgs},$i,1);
+                        $output = splice(@{$refToinArgs},$i,1);
+                    }
+                    else {
+                        print "Error(cutOptions): Place proper delimter($delimiter) for options!!!";
+                        exit 0;
+                    }
+                    $output =~ s/\s*//;                
+		    if($configuration eq 'all') { push(@outputs,$output); }
+                    last;
+                }
+            }
+            if(!defined($output)) {
+                if($delimiter eq 'bool') {
+                    $output=false;
+                }
+                else {
+                    $output='';
+                }
+            }
+	    if($configuration ne 'all') { push(@outputs,$output); }
+        }
+    }
+    else { 														# Not a reference
+        print "Error(cutOptions): First input argument is not a reference, Can't be trimmed...";
+        exit 0;
+    }
+    trimSpacesFromBothEnd(\@outputs);
+    return @outputs;
+}
+
+
+
+######### Advantage: Trim an array of array of array..... ##########
+######### Input: One/Multiple references to Scalar/Array... ##########
+######### Picked from multipleRun.pl  ###############
+sub trimSpacesFromBothEnd {
+	my $input = $_[0];
+	
+	if (scalar(@_)>1) { 												# Input is an array
+	    foreach my $input(@_) {
+		trimSpacesFromBothEnd($input);
+	    }
+	}
+	
+	if ( UNIVERSAL::isa($input,'REF') ) {							    			# Reference to a Reference
+		trimSpacesFromBothEnd(${$input});
+	}
+	elsif ( ! ref($input) ) { 												# Not a reference
+	    print "Error(trimSpacesFromBothEnd): Not a reference, Can't be trimmed...";
+	    exit 0;
+	}
+	elsif ( UNIVERSAL::isa($input,'SCALAR')) {  										# Reference to a scalar
+		chomp(${$input});
+		${$input} =~ s/^\s+//g;
+		${$input} =~ s/\s+$//g;		
+	}
+	elsif ( UNIVERSAL::isa($input,'ARRAY') ) { 										# Reference to an array
+		foreach my $element(@{$input}) {
+			trimSpacesFromBothEnd(\$element);
+		}
+	}
+	elsif ( UNIVERSAL::isa($input,'HASH') ) { 										# Reference to a hash
+	    print "Error(trimSpacesFromBothEnd): Reference to an hash, Can't be trimmed...";
+	    exit 0;
+	}
+	elsif ( UNIVERSAL::isa($input,'CODE') ) { 										# Reference to a subroutine
+	    print "Error(trimSpacesFromBothEnd): Reference to an subroutine, Can't be trimmed...";
+	    exit 0;
+	}
+}
+
+sub getUniqueElements {
+    ## -Remove duplicate elements
+    my %seen;
+    my @uniqElements = grep { ! $seen{$_}++ } @_;
+    return @uniqElements;
+}
+
+sub compareVersionNumbers {
+    my($revisionNumber1,$revisionNumber2) = @_;
+    my @fieldsForRev1 = $revisionNumber1 =~ /(\d+(?:\.|$))/g; map{s/\.$//} @fieldsForRev1;
+    my @fieldsForRev2 = $revisionNumber2 =~ /(\d+(?:\.|$))/g; map{s/\.$//} @fieldsForRev2;
+    for my $iField(0..min(scalar(@fieldsForRev1),scalar(@fieldsForRev2))) {
+        if($fieldsForRev1[$iField] > $fieldsForRev2[$iField]) { return 1; }
+        elsif($fieldsForRev1[$iField] < $fieldsForRev2[$iField]) { return -1; }
+    }
+    if(scalar(@fieldsForRev1)>scalar(@fieldsForRev2)) { return 1; }
+    elsif(scalar(@fieldsForRev1)<scalar(@fieldsForRev2)) { return -1; }
+    elsif(scalar(@fieldsForRev1)==scalar(@fieldsForRev2)) { return 0; }
+}
+
+###### Return: Maximum value of Input Array... #####
+sub max {
+        my @sortedInput = sort {$a <=> $b} @_;
+        return $sortedInput[-1];
+}
+
+##### Return: Minimum value of Input Array... #####
+sub min {
+        my @sortedInput = sort {$a <=> $b} @_;
+        return $sortedInput[0];
+}
