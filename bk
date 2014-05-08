@@ -48,15 +48,16 @@ sub main {
     my($register,$reg) = cutOptions(\@ARGV,' ','--register','--reg');
     my($version) = cutOptions(\@ARGV,'bool','--version'); ## Note: All other options are discarded.
     @fileNames = (@fileNames, grep(!/^-/,@ARGV));
-    map{s/\s*$//,s/^.*\/.+//} @fileNames;
+    my @locationPerFile = map{s/\/?\s*$//;s/(^.*\/)//;$1} @fileNames;
+    @locationPerFile  = convertUndefValuesToNullString(@locationPerFile);
     if($reg ne '') { $register = $reg; }
     my $regToPrepend = '';
     if($register ne '') { $regToPrepend = "-register:$register--";}
     if($version) { print "$currentFileVersionNumber\n"; exit 0;}
     
     ## -Copy all files to $trashFolder ($fileName can also be a pattern)
-    foreach my $fileName(@fileNames) {
-       print `cp -rf $fileName $trashFolder;`;
+    foreach my $iFileName(0..scalar(@fileNames)-1) {
+       print `cp -rf ${locationPerFile[$iFileName]}${fileNames[$iFileName]} $trashFolder;`;
     }
     ## -Prepend all non-prepended files in $trashFolder with $currentTime
     my @nonPrependedFilesInTrash = grep(!/$timePattern/,split('\n',`ls $trashFolder`));
@@ -202,3 +203,13 @@ sub trimSpacesFromBothEnd {
 	}
 }
 
+sub convertUndefValuesToNullString {
+    my @inputs = @_;
+    my @outputs = @inputs;
+    for my $iInput(0..scalar(@inputs)-1) {
+	if(!defined($inputs[$iInput])) {
+		$outputs[$iInput]='';
+	}
+    }
+    return @outputs;
+}
