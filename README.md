@@ -4,10 +4,10 @@ README for the UNIX tools bk,rmb,ret
 
 -DESCRIPTION
 
-	This tool helps to make backups of files/folders in UNIX terminal, & retrieve them 
-	based on fileName/date/recency. FILES/FOLDERS can also be backed to a register, 
-	for a later retrieval. This UNIX tool also helps to do copy/cut/paste operation 
-	of files/folders in UNIX terminal.
+	This tool helps to make backups of files/folders in UNIX terminal, & retrieve them based on 
+	fileName/date/recency. FILES/FOLDERS can also be backed to a register, for a later retrieval.
+	This UNIX tool also helps to do copy/cut/paste operation of files/folders in UNIX terminal.
+	
 
 See man pages of the commands for more info.
 
